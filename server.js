@@ -58,3 +58,16 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`FileSync server running at http://localhost:${PORT}`);
 });
+
+// DELETE endpoint to remove a file
+app.delete('/delete/:filename', (req, res) => {
+  const filePath = path.join(__dirname, 'uploads', req.params.filename);
+
+  fs.unlink(filePath, (err) => {
+    if (err) {
+      return res.status(404).json({ error: 'File not found or already deleted' });
+    }
+    res.json({ message: 'File deleted successfully' });
+  });
+});
+
