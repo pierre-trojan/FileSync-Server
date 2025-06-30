@@ -1,35 +1,40 @@
+const chokidar = require('chokidar');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
 const FormData = require('form-data');
 
-const WATCH_FOLDER = path.join(__dirname, 'sync'); // Folder to watch
-const SERVER_URL = 'http://localhost:3000/upload'; // Your server's upload endpoint
+const syncFolder = path.join(__dirname, 'sync');
+const serverURL = 'https://filesync-server.onrender.com';
 
-// Ensure the folder exists
-if (!fs.existsSync(WATCH_FOLDER)) {
-  fs.mkdirSync(WATCH_FOLDER);
-}
+console.log(`Watching folder: ${syncFolder}`);
 
-console.log('Watching folder:', WATCH_FOLDER);
+chokidar.watch(syncFolder).on('all', async (event, filePath) => {
+  const fileName = path.basename(filePath);
 
-// Watch the folder for new files
-fs.watch(WATCH_FOLDER, (eventType, filename) => {
-  if (eventType === 'rename' && filename) {
-    const filePath = path.join(WATCH_FOLDER, filename);
-    if (fs.existsSync(filePath)) {
-      console.log('New file detected:', filename);
+  if (event === 'add') {
+    console.log(`New file detected: ${fileName}`);
 
-      const form = new FormData();
-      form.append('file', fs.createReadStream(filePath));
+    const form = new FormData();
+    form.append('file', fs.createReadStream(filePath));
 
-      axios.post(SERVER_URL, form, {
+    try {
+      await axios.post(`${serverURL}/upload`, form, {
         headers: form.getHeaders()
-      }).then(() => {
-        console.log('Uploaded:', filename);
-      }).catch((err) => {
-  console.error('Upload failed:', err.message);
-});
+      });
+      console.log(`Uploaded: ${fileName}`);
+    } catch (err) {
+      console.error(`Upload failed: ${err.message}`);
+    }
+
+  } else if (event === 'unlink') {
+    console.log(`File deleted: ${fileName}`);
+
+    try {
+      await axios.post(`${serverURL}/delete-sync/${fileName}`);
+      console.log(`Deleted on server: ${fileName}`);
+    } catch (err) {
+      console.error(`Server deletion failed: ${err.message}`);
     }
   }
 });
