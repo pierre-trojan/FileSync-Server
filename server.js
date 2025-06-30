@@ -1,67 +1,43 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
+const cors = require('cors');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Create uploads folder if missing
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
+// Create uploads folder if it doesn't exist
+const uploadFolder = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadFolder)) {
+  fs.mkdirSync(uploadFolder);
 }
 
-// Middleware to serve uploaded files
-app.use('/uploads', express.static(uploadDir));
+app.use(cors());
+app.use(express.static(uploadFolder));
 
-// File upload setup
+// Multer storage setup
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
+  destination: (req, file, cb) => {
+    cb(null, uploadFolder);
+  },
   filename: (req, file, cb) => {
     const uniqueName = Date.now() + '-' + file.originalname;
     cb(null, uniqueName);
   }
 });
+
 const upload = multer({ storage });
 
-// Home route: list uploaded files + success message if synced
-app.get('/', (req, res) => {
-  const status = req.query.status;
-  fs.readdir(uploadDir, (err, files) => {
-    if (err) return res.status(500).send('Error reading uploaded files');
-
-    const fileLinks = files.map(file =>
-      `<li><a href="/uploads/${file}" target="_blank">${file}</a></li>`
-    ).join('');
-
-    res.send(`
-      <html>
-        <head><title>FileSync Uploads</title></head>
-        <body>
-          <h1>📁 Uploaded Files</h1>
-          ${status === 'success' ? '<p style="color: green;">✅ Sync successful!</p>' : ''}
-          <ul>${fileLinks || '<li>No files uploaded yet.</li>'}</ul>
-        </body>
-      </html>
-    `);
-  });
-});
-
-// Upload endpoint
+// Upload route
 app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).send('No file uploaded');
-  res.redirect('/?status=success');
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ message: 'File uploaded successfully', filename: req.file.filename });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`FileSync server running at http://localhost:${PORT}`);
-});
-
-// DELETE endpoint to remove a file
+// Delete route
 app.delete('/delete/:filename', (req, res) => {
-  const filePath = path.join(__dirname, 'uploads', req.params.filename);
+  const filePath = path.join(uploadFolder, req.params.filename);
 
   fs.unlink(filePath, (err) => {
     if (err) {
@@ -71,3 +47,6 @@ app.delete('/delete/:filename', (req, res) => {
   });
 });
 
+app.listen(PORT, () => {
+  console.log(`FileSync server running at http://localhost:${PORT}`);
+});
